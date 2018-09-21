@@ -2,6 +2,8 @@ var fs = require('fs');
 var cheerio = require("cheerio");
 var request = require('superagent');
 var youtube = require('./youtube');
+var FormData = require('form-data');
+const qs = require('qs');
 
 require('superagent-proxy')(request);
 // HTTP, HTTPS, or SOCKS proxy to use
@@ -20,26 +22,14 @@ var config = {
    loginCookie: '',
 }
 
-var loginData = {
-   determine_email: 'wyk_2000@sina.com',
-   'user[email]': 'wyk_2000@sina.com',
-   'user[password]': 'wyk87520',
-   context: 'no_referer',
-   version: 'STANDARD',
-   form_key: '!1231536570514|h1QGfRrDzytNjHQtGC4lDLgrNkw',
-   seen_suggestion: 0,
-   used_suggestion: 0,
-   used_auto_suggestion: 0,
-   action: 'signup_determine'
-}
-
-var headInfo = {
+var loginHeadInfo = {
    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
    'accept-encoding': 'gzip, deflate, br',
    'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
    'cache-control': 'max-age=0',
-   // origin: https://www.tumblr.com
-   // referer: https://www.tumblr.com/login
+   // 'content-type': 'application/x-www-form-urlencoded',
+   origin: 'https://www.tumblr.com',
+   referer: 'https://www.tumblr.com/login',
    'upgrade-insecure-requests': 1,
    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
 }
@@ -63,41 +53,79 @@ var getPFL = async () => {
       request
          .get(config.login_url)
          .proxy(proxy)
-         .end((err, res) => {
+         .redirects(0)
+         .end(async (err, res) => {
             if (err) {
                reject(err);
             } else {
+               getFormData(res);
                var cookies = res.headers['set-cookie'];
-               var pfl = getCookie(cookies, 'pfl');
                resolve(cookies);
             }
          })
+      // .catch(err => {
+      //    console.log("catch:", err.message, err.response);
+      // });;
    });
+}
+
+
+var loginData = {
+   determine_email: 'wyk_2000@sina.com',
+   'user[email]': 'wyk_2000@sina.com',
+   'user[password]': 'wyk87520',
+   action: 'signup_determine',
+   // context: 'no_referer',
+   // version: 'STANDARD',
+   // form_key: '', // '!1231536570514|h1QGfRrDzytNjHQtGC4lDLgrNkw',
+   // seen_suggestion: 0,
+   // used_suggestion: 0,
+   // used_auto_suggestion: 0,
+   // random_username_suggestions: ["FriedLoverStudent", "ElegantCollectionBlizzard", "BrieflyFreeStranger", "DelicateMilkshakePrincess", "ElegantColorCollector"],
+}
+
+var getFormData = (res) => {
+   var $ = cheerio.load(res.text);
+   var formRow = $('.form_row_hidden')[0];
+   for (var i = 0; i < formRow.children.length; i++) {
+      var name = formRow.children[i].attribs['name'];
+      loginData[name] = formRow.children[i].attribs['value'];
+   }
+   // return new Promise((resolve, reject) => {
+   //    var len = JSON.stringify(loginData).length;
+   //    request.post('https://www.tumblr.com/svc/secure_form_key')
+   //       .proxy(proxy)
+   //       .set({
+   //          "x-tumblr-form-key": fk
+   //       }).end(function (err, res) {
+   //          if (!err) {
+   //             resolve(res);
+   //          }
+   //       })
+   // });
 }
 
 var login = async () => {
    var url = config.login_url;
    return new Promise((resolve, reject) => {
-      var len = JSON.stringify(loginData).length;
-      request.post(url)
+      var req = request.post(url)
          .proxy(proxy)
-         // .set(headInfo)
+         .set(loginHeadInfo)
          .set({
             "cookie": config.loginCookie,
-            'content-type': 'application/x-www-form-urlencoded',
-            // 'content-type': 'text/html;charset=utf-8',
+            // "cookie": 'yx=qr8v2buqd6ng5%26o%3D3%26f%3Ds7; nts=false; devicePixelRatio=1; tmgioct=5ba33dd66da3540859709560; capture=dzsmkanoMehvomLDUdvCcexrg; _ga=GA1.2.1505416493.1537424857; _gid=GA1.2.1768903387.1537424857; __utma=189990958.1505416493.1537424857.1537424857.1537424857.1; __utmb=189990958.0.10.1537424857; __utmc=189990958; __utmz=189990958.1537424857.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); rxx=1tes30zssvm.19hwgp2c&v=1; documentWidth=540; pfl=OTgwMzMyNmEzZjMwNzBiZTlhZjgyN2ExYjFiYmQyYjUyZTgwNDYxMGY1NDM0NjRmZThmM2Y0NGJkOTZiODI3NixjY3M0dDV0Y2RmZWZrM3NuZXJjczdla2I1Y2Zrd3R1dCwxNTM3NDI1NjI1'
          })
-         // .type('form')
+         .type('form')
          .send(loginData)
-         // .redirects(1)
-         .end(function (err, res) {
-            console.log(res)
-            if (!err) {
-               loginCookie = res.headers["set-cookie"];
-               resolve(loginCookie);
-            } else
-               reject(err);
-         });
+      // .redirects(1)
+      req.end(function (err, res) {
+         // console.log(res)
+         if (!err) {
+            var loginCookie = res.headers["set-cookie"];
+            resolve(loginCookie);
+         } else
+            reject(err);
+      })
    })
 
 }
@@ -264,22 +292,26 @@ var downloadImgs = (imgs, callback) => {
    }
 }
 
-var getUrlText = (url, callback) => {
-   request.get(url)
-      .proxy(proxy)
-      // .set(headInfo)
-      .set({
-         "cookie": config.loginCookie,
-         // 'content-type': 'application/x-www-form-urlencoded',
-         // 'content-type': 'text/html;charset=utf-8',
-      })
-      .end(function (err, res) {
-         if (!err) {
-            callback(null, res.text);
-         } else {
-            callback(err);
-         }
-      });
+var getUrlText = async (url, callback) => {
+   return new Promise((resolve, reject) => {
+      request.get(url)
+         .proxy(proxy)
+         // .set(headInfo)
+         .set({
+            "cookie": config.loginCookie,
+            // 'content-type': 'application/x-www-form-urlencoded',
+            // 'content-type': 'text/html;charset=utf-8',
+         })
+         .end(function (err, res) {
+            if (!err) {
+               // callback(null, res.text);
+               resolve(res.text);
+            } else {
+               // callback(err);
+               reject(err);
+            }
+         });
+   });
 }
 
 var downloadYoutubeVideos = async (videos, callback) => {
@@ -295,46 +327,83 @@ var downloadYoutubeVideos = async (videos, callback) => {
    for (var i = 0; i < videos.length; i++) {
       var src = videos[i].src;
       // console.log(src);
-      getUrlText(src, (err, text) => {
-         if (!err) {
-            var $ = cheerio.load(text);
-            var ytbiframe = $('#youtube_iframe');
-            var ytbSrc = ytbiframe[0].attribs.src;
-            var s1 = ytbSrc.split('?');
-            var left = s1[0];
-            var videoId = left.substr(left.lastIndexOf('/') + 1);
-            // console.log(ytbSrc, videoId);
-            var res = await youtube.getUrl(videoId);
-            checkCount();
-            // (function () {
-            //    youtube.getUrl(videoId, (err, res) => {
-            //       if (!err) {
-            //          var url = res;
-            //          console.log("get video info:", videoId);
-            //          // console.log(url);
-            //          var name = videoId;
-            //          var fname = './download/video/' + name;
-            //          checkCount();
-            //          // downloadFile(url, fname, (r) => {
-            //          //    var idxStr = `(${videos.length - count + 1}/${videos.length})`;
-            //          //    if (r === 1) {
-            //          //       console.log(`downloaded${idxStr}:`, name, url);
-            //          //    } else if (r === 2) {
-            //          //       console.log(`already exists${idxStr}:`, name, url);
-            //          //    }
-            //          //    checkCount();
-            //          // });
-            //       } else {
-            //          console.log(err);
-            //          checkCount();
-            //       }
-            //    })
-            // })(videoId)
-         } else {
-            console.log(err);
-            checkCount();
-         }
-      })
+      try {
+         var res = getUrlText(src);
+         var $ = cheerio.load(text);
+         var ytbiframe = $('#youtube_iframe');
+         var ytbSrc = ytbiframe[0].attribs.src;
+         var s1 = ytbSrc.split('?');
+         var left = s1[0];
+         var videoId = left.substr(left.lastIndexOf('/') + 1);
+         // console.log(ytbSrc, videoId);
+         var res = await youtube.getUrl(videoId);
+         checkCount();
+         // (function () {
+         //    youtube.getUrl(videoId, (err, res) => {
+         //       if (!err) {
+         //          var url = res;
+         //          console.log("get video info:", videoId);
+         //          // console.log(url);
+         //          var name = videoId;
+         //          var fname = './download/video/' + name;
+         //          checkCount();
+         //          // downloadFile(url, fname, (r) => {
+         //          //    var idxStr = `(${videos.length - count + 1}/${videos.length})`;
+         //          //    if (r === 1) {
+         //          //       console.log(`downloaded${idxStr}:`, name, url);
+         //          //    } else if (r === 2) {
+         //          //       console.log(`already exists${idxStr}:`, name, url);
+         //          //    }
+         //          //    checkCount();
+         //          // });
+         //       } else {
+         //          console.log(err);
+         //          checkCount();
+         //       }
+         //    })
+         // })(videoId)
+      } catch (err) {
+         console.log(err);
+         checkCount();
+      }
+      // await getUrlText(src, (err, text) => {
+      //    if (!err) {
+      //       var $ = cheerio.load(text);
+      //       var ytbiframe = $('#youtube_iframe');
+      //       var ytbSrc = ytbiframe[0].attribs.src;
+      //       var s1 = ytbSrc.split('?');
+      //       var left = s1[0];
+      //       var videoId = left.substr(left.lastIndexOf('/') + 1);
+      //       // console.log(ytbSrc, videoId);
+      //       var res = await youtube.getUrl(videoId);
+      //       checkCount();
+      //       // (function () {
+      //       //    youtube.getUrl(videoId, (err, res) => {
+      //       //       if (!err) {
+      //       //          var url = res;
+      //       //          console.log("get video info:", videoId);
+      //       //          // console.log(url);
+      //       //          var name = videoId;
+      //       //          var fname = './download/video/' + name;
+      //       //          checkCount();
+      //       //          // downloadFile(url, fname, (r) => {
+      //       //          //    var idxStr = `(${videos.length - count + 1}/${videos.length})`;
+      //       //          //    if (r === 1) {
+      //       //          //       console.log(`downloaded${idxStr}:`, name, url);
+      //       //          //    } else if (r === 2) {
+      //       //          //       console.log(`already exists${idxStr}:`, name, url);
+      //       //          //    }
+      //       //          //    checkCount();
+      //       //          // });
+      //       //       } else {
+      //       //          console.log(err);
+      //       //          checkCount();
+      //       //       }
+      //       //    })
+      //       // })(videoId)
+      //    } else {
+      //       console.log(err);
+      //       checkCount();
    }
 }
 
@@ -363,7 +432,7 @@ var download = async (result) => {
       }
       if (args.download.video) {
          var videos = result.ytbVideos;
-         await downloadYoutubeVideos(videos, () => {
+         downloadYoutubeVideos(videos, () => {
             groupCount--;
             if (groupCount === 0)
                resolve();
@@ -380,12 +449,20 @@ var sleep = async (time) => {
    })
 }
 
-var exec = async function () {
-   // var loginCookie = config.loginCookie = await getPFL();
-   // console.log("loginCookie:", loginCookie);
-   // var cookie = await login();
-   // console.log("cookie:", cookie);
+var doLogin = async () => {
+   // config.loginCookie = await getPFL();
+   var cookies = await getPFL();
+   var pfl = getCookie(cookies, 'pfl');
+   var tmgioct = getCookie(cookies, 'tmgioct');
+   // config.loginCookie = 'tmgioct=' + tmgioct + '; pfl=' + pfl;
+   config.loginCookie = 'pfl=' + pfl;
+   console.log("loginCookie:", config.loginCookie);
+   console.log("form_key:", loginData.form_key);
+   var cookie = await login();
+   console.log("cookie:", cookie);
+}
 
+var doDashboard = async () => {
    config.loginCookie = "pfl=YzdlNWJiZGI2OTA5MTEyY2Y3ZDI1MTBkNzRlNGJiMGEzMmMwYWI0MmJlYWI0NjQ5MzQzMGE3ZThjZWI3YjdkZCx2YzJudW1lZmhlaHR0NnU3YzMzcjk1N3oyaHVuYnczaywxNTM2NzE4NTE5; __utma=189990958.2021843838.1536718518.1536718518.1536718518.1; __utmb=189990958.0.10.1536718518; __utmc=189990958; __utmz=189990958.1536718474.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); tmgioct=5b9876c7cbed170347134810; pfp=NJPpPdlmd4LqtAJsVoYilyssnZImJ2Gwh7xVN0LL; pfs=zQHzwkagVYQX4jXhQLsroe0op1Q; pfe=1544494536; pfu=340864816; pfx=51c87639396b6d78dfaebd7941eb48c04f9f3b24a751c4d5b626f6f80327de38%231%236726602310; language=%2Cen_US; logged_in=1";
    var dashResult = await dashboard();
    await download(dashResult);
@@ -402,12 +479,17 @@ var exec = async function () {
    }
 }
 
+var exec = async function () {
+   await doLogin();
+   // await doDashboard();
+}
 
-var test = () => {
-   youtube.getUrl('URoAnyXqB9g', (err, res) => {
+
+var test = async () => {
+   await youtube.getUrl('URoAnyXqB9g', (err, res) => {
       console.log(err, res);
    })
-   youtube.getUrl('URoAnyXqB9g', (err, res) => {
+   await youtube.getUrl('URoAnyXqB9g', (err, res) => {
       console.log(err, res);
    })
 }

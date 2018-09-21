@@ -19,6 +19,12 @@
       {
          "type": "node",
          "request": "launch",
+         "name": "tumblrApi",
+         "program": "${workspaceFolder}\\tumblr_api.js"
+      },
+      {
+         "type": "node",
+         "request": "launch",
          "name": "h2",
          "program": "${workspaceFolder}\\h2.js"
       }
